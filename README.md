@@ -9,12 +9,13 @@ Pipeline de pesquisa qualitativa para mapear padrões de **"fofoca algorítmica"
 
 ## Visão Geral
 
-O pipeline é composto por três fases independentes e sequenciais:
+O pipeline é composto por quatro fases independentes e sequenciais:
 
 ```
-[Fase 1] Coleta bruta        →  data/raw/raw_reddit_data.jsonl
-[Fase 2] Limpeza e estrutura →  data/processed/reddit_corpus_limpo.xlsx
-[Fase 3] Análise e relatório →  reports/relatorio_fofoca_algoritmica_YYYYMMDD_HHMM.md
+[Fase 1] Coleta bruta          →  data/raw/raw_reddit_data.jsonl
+[Fase 2] Limpeza e estrutura   →  data/processed/reddit_corpus_limpo.xlsx
+[Fase 3] Análise e relatório   →  reports/relatorio_fofoca_algoritmica_YYYYMMDD_HHMM.md
+[Fase 4] Visualização estatística →  notebooks/analise_resultados.ipynb
 ```
 
 ---
@@ -40,6 +41,16 @@ influencias-research-tools/
 │   ├── loader.py                  # Leitura do JSONL
 │   ├── cleaner.py                 # Funil de filtros metodológicos
 │   └── exporter.py                # Exportação para Excel (.xlsx)
+│
+├── notebooks/                     # Fase 4 — Análise estatística e visualização
+│   ├── analise_resultados.ipynb   # Notebook principal de análise
+│   ├── grafico_subreddits.png
+│   ├── grafico_boxplot_comentarios.png
+│   ├── grafico_estatistica_descritiva_engajamento.png
+│   ├── grafico_vocabulario_nativo.png
+│   ├── grafico_especulacao_acao.png
+│   ├── grafico_ansiedade_algoritmica.png
+│   └── grafo_intra_acao_neomaterialista.png
 │
 ├── data/                          # Dados gerados (não versionado)
 │   ├── raw/                       # → raw_reddit_data.jsonl
@@ -153,6 +164,45 @@ O relatório é salvo com timestamp para não sobrescrever versões anteriores.
 
 ---
 
+## Fase 4 — Análise Estatística e Visualização
+
+**Notebook:** `notebooks/analise_resultados.ipynb`
+
+Análise exploratória do corpus processado com foco em caracterização estatística e visualização dos padrões de "fofoca algorítmica".
+
+**Seções do notebook:**
+
+1. **Estatística Descritiva** — total de posts, comentários, média de engajamento, percentual de criadores suspeitos
+2. **Distribuição por Subreddit** — contagem de posts por comunidade
+3. **Distribuição de Engajamento** — boxplot de upvotes e comentários por subreddit
+4. **Vocabulário Nativo** — frequência dos termos técnicos do ecossistema TikTok
+5. **Especulação vs. Ação** — presença de termos de hipótese (`maybe`, `probably`) versus experimentação (`tested`, `tried`)
+6. **Ansiedade Algorítmica** — mapeamento de termos de incerteza e frustração no corpus
+7. **Grafo Intra-Ação Neomaterialista** — rede de co-ocorrências entre termos do corpus
+
+**Gráficos gerados** (salvos em `notebooks/`):
+
+| Arquivo | Conteúdo |
+|---|---|
+| `grafico_subreddits.png` | Distribuição do corpus por comunidade |
+| `grafico_boxplot_comentarios.png` | Distribuição de comentários por subreddit |
+| `grafico_estatistica_descritiva_engajamento.png` | Upvotes e engajamento geral |
+| `grafico_vocabulario_nativo.png` | Top termos nativos do corpus |
+| `grafico_especulacao_acao.png` | Razão especulação/ação por subreddit |
+| `grafico_ansiedade_algoritmica.png` | Intensidade de ansiedade algorítmica |
+| `grafo_intra_acao_neomaterialista.png` | Grafo de co-ocorrências de termos |
+
+**Para executar:**
+
+```bash
+cd notebooks
+jupyter notebook analise_resultados.ipynb
+```
+
+> As dependências `openpyxl` e `seaborn` são instaladas automaticamente pela primeira célula caso não estejam presentes.
+
+---
+
 ## How to Use
 
 ### 1. Instalação
@@ -203,10 +253,18 @@ python analise_corpus.py --input data/processed/reddit_corpus_limpo.xlsx
 
 > Imprime o relatório no console **e** salva em `reports/` com timestamp.
 
+### 5. Fase 4 — Visualização
+
+```bash
+cd notebooks
+jupyter notebook analise_resultados.ipynb
+```
+
 ### Sequência completa (do zero)
 
 ```bash
 python main.py && python process.py && python analise_corpus.py
+# Em seguida, abra notebooks/analise_resultados.ipynb no Jupyter
 ```
 
 ---
