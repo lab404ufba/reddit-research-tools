@@ -1,0 +1,8 @@
+{
+  "yaml.schemas": {
+    "profiles/schema/research_profile.schema.json": [
+      "profiles/**/*.yaml",
+      "!profiles/schema/**"
+    ]
+  }
+}

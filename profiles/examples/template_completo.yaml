@@ -1,0 +1,65 @@
+# =============================================================================
+# MODELO COMPLETO — copie este ficheiro, renomeie e ajuste study_id antes de correr.
+# Documentação: profiles/README.md  |  Schema IDE: profiles/schema/research_profile.schema.json
+# =============================================================================
+
+# --- Obrigatórios (sem defaults sensatos) ------------------------------------
+# study_id: só [a-zA-Z0-9_]; define nomes data/raw/<id>_raw.jsonl, etc.
+study_id: meu_estudo_id
+
+# Tema legível (aparece em metadados e relatório Markdown)
+theme_label: "Título do estudo para humanos lerem"
+
+# Lista de subreddits SEM o prefixo r/
+subreddits:
+  - exemplo_subreddit
+
+# Grupos semânticos → frases de busca (cada par subreddit×keyword corre na Fase 1)
+keyword_groups:
+  grupo_a:
+    - primeira query de busca
+    - segunda query
+  grupo_b:
+    - outra linha de investigação
+
+# --- Opcional: Fase 1 (search) — omitir bloco inteiro = usar defaults do código
+# Defaults típicos: time_filter year, 40 posts, 20 comentários, delay 2–5 s, headless true
+search:
+  time_filter: year # hour | day | week | month | year | all (valor Reddit t=)
+  max_posts_per_search: 40
+  max_comments_per_post: 20
+  delay_min: 2.0
+  delay_max: 5.0
+  headless_default: true # main.py --no-headless ignora isto e abre janela
+
+# --- Opcional: Fase 2 (filters) — omitir = min_comments 3, min_chars 30, etc.
+filters:
+  min_comments: 3
+  min_chars: 30
+  # Lista de sub-padrões regex (OR) para marcar is_creator_suspect; omitir = lista padrão do repo
+  # creator_patterns:
+  #   - "\\bmy video\\b"
+  # Substrings em título+corpo (case-insensitive) → post excluído do corpus
+  exclude_terms: []
+  # Se não vazio: só mantém posts com pelo menos um destes termos em título+corpo
+  require_any_terms: []
+
+# --- Opcional: Fase 3 (analysis) — omitir = títulos e vocabulário padrão do research_profile.py
+analysis:
+  report_title: "Relatório de análise do corpus"
+  report_subtitle: "Corpus Reddit — Fase 3"
+  vocabulary_terms:
+    - termo1
+    - termo2
+  # Regex Python; compiladas com IGNORECASE; sintaxe inválida falha ao carregar o perfil
+  tactics_pattern: "\\b(tested|tried|worked)\\b"
+  theories_pattern: "(watch time|retention)"
+
+# --- Opcional: só documentação (o pipeline ignora; útil para equipa / revisão ética)
+notes: |
+  Protocolo v1. Hipótese principal: …
+  Contacto responsável: …
+
+metadata:
+  projeto: "Exemplo"
+  orcid: "0000-0000-0000-0000"
