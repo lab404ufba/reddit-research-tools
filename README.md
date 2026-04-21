@@ -1,293 +1,193 @@
-# Influências Research Tools
+# Reddit Research Tools
 
-Pipeline de pesquisa qualitativa para mapear padrões de **"fofoca algorítmica"** no Reddit — discursos de criadores de conteúdo sobre o algoritmo do TikTok.
+Ferramenta para **montar corpus a partir do Reddit** com um **perfil de pesquisa** (YAML): cada estudo define `study_id`, tema legível, subreddits, grupos de palavras-chave, filtros de pós-processamento (exclusões, termos obrigatórios) e parâmetros do relatório da Fase 3. O caso original foi o estudo sobre **discursos de criadores sobre o algoritmo do TikTok** (“fofoca algorítmica”); a mesma pipeline serve para qualquer tema delimitado pelo pesquisador.
 
-**Autor:** Giovanni Della Dea
+**Autor (estudo original):** Giovanni Della Dea  
 **Instituição:** Universidade Federal da Bahia (UFBA)
 
 ---
 
-## Visão Geral
+## Visão geral
 
-O pipeline é composto por quatro fases independentes e sequenciais:
+Pipeline em quatro fases (1–3 em linha de comando; 4 no Jupyter):
 
 ```
-[Fase 1] Coleta bruta          →  data/raw/raw_reddit_data.jsonl
-[Fase 2] Limpeza e estrutura   →  data/processed/reddit_corpus_limpo.xlsx
-[Fase 3] Análise e relatório   →  reports/relatorio_fofoca_algoritmica_YYYYMMDD_HHMM.md
-[Fase 4] Visualização estatística →  notebooks/analise_resultados.ipynb
+[Fase 1] Coleta bruta          →  data/raw/<study_id>_raw.jsonl
+[Fase 2] Limpeza e estrutura   →  data/processed/<study_id>_corpus.xlsx
+[Fase 3] Análise e relatório   →  reports/relatorio_<study_id>_YYYYMMDD_HHMM.md
+[Fase 4] Visualização          →  notebooks/analise_resultados.ipynb
 ```
+
+Perfil padrão (reprodutível, equivalente ao antigo `scraper/config.py`):  
+[`profiles/examples/fofoca_algoritmica.yaml`](profiles/examples/fofoca_algoritmica.yaml).
+
+Guia de campos **obrigatórios vs opcionais**, `notes` / `metadata` e validação:  
+[`profiles/README.md`](profiles/README.md).
 
 ---
 
 ## Arquitetura
 
 ```
-influencias-research-tools/
-│
-├── main.py                        # Fase 1 — entry point do scraper
-├── process.py                     # Fase 2 — entry point do processador
-├── analise_corpus.py              # Fase 3 — entry point da análise
-├── paths.py                       # Caminhos canônicos + criação automática de pastas
+reddit-research-tools/
+├── main.py                 # Fase 1 — scraper (Playwright)
+├── process.py              # Fase 2 — funil + Excel
+├── analise_corpus.py       # Fase 3 — relatório Markdown
+├── paths.py                # Pastas + paths_for_study(study_id)
+├── research_profile.py     # load_profile() + dataclasses do YAML
 ├── requirements.txt
-│
-├── scraper/                       # Módulo da Fase 1
-│   ├── config.py                  # Subreddits, keywords, parâmetros
-│   ├── browser.py                 # Playwright + configurações anti-bot
-│   ├── reddit_scraper.py          # Loop de busca e extração profunda
-│   └── storage.py                 # Salvamento incremental em JSONL
-│
-├── processor/                     # Módulo da Fase 2
-│   ├── loader.py                  # Leitura do JSONL
-│   ├── cleaner.py                 # Funil de filtros metodológicos
-│   └── exporter.py                # Exportação para Excel (.xlsx)
-│
-├── notebooks/                     # Fase 4 — Análise estatística e visualização
-│   ├── analise_resultados.ipynb   # Notebook principal de análise
-│   ├── grafico_subreddits.png
-│   ├── grafico_boxplot_comentarios.png
-│   ├── grafico_estatistica_descritiva_engajamento.png
-│   ├── grafico_vocabulario_nativo.png
-│   ├── grafico_especulacao_acao.png
-│   ├── grafico_ansiedade_algoritmica.png
-│   └── grafo_intra_acao_neomaterialista.png
-│
-├── data/                          # Dados gerados (não versionado)
-│   ├── raw/                       # → raw_reddit_data.jsonl
-│   └── processed/                 # → reddit_corpus_limpo.xlsx
-│
-├── logs/                          # Logs de execução (não versionado)
-│   └── scraper.log
-│
-└── reports/                       # Relatórios gerados (não versionado)
-    └── relatorio_fofoca_algoritmica_YYYYMMDD_HHMM.md
-```
-
-### Dados gerados (não versionados)
-
-| Caminho | Gerado por | Descrição |
-|---|---|---|
-| `data/raw/raw_reddit_data.jsonl` | Fase 1 | Um post por linha, formato JSON Lines |
-| `logs/scraper.log` | Fase 1 | Log completo da coleta |
-| `data/processed/reddit_corpus_limpo.xlsx` | Fase 2 | Corpus filtrado, abas Posts e Comentarios |
-| `reports/relatorio_fofoca_algoritmica_*.md` | Fase 3 | Relatório com timestamp |
-
----
-
-## Fase 1 — Coleta Bruta
-
-**Script:** `main.py` | **Módulo:** `scraper/`
-
-Usa Playwright para emular um navegador real e percorrer o Reddit sem usar a API oficial.
-
-**Parâmetros de busca** (em `scraper/config.py`):
-
-- **Subreddits:** TikTokMonetizing, TikTok, socialmedia, NewTubers, ContentCreation, Influencers
-- **Grupos semânticos:**
-  - Algoritmo: `TikTok algorithm`, `algorithm changed`, `algorithm update`
-  - Shadowban: `TikTok shadowban`, `shadow banned`, `account restricted`
-  - Visibilidade: `views dropped`, `zero views`, `not on FYP`, `reach down`
-  - Métricas: `retention rate`, `watch time`, `engagement dropped`
-  - Monetização: `Creator Rewards`, `TikTok monetization`
-- Filtro de tempo: último ano (`t=year`)
-- Até 40 posts por combinação subreddit × keyword
-- Até 20 comentários por post
-
-**Resiliência:**
-- Salvamento incremental — dados não são perdidos em caso de interrupção
-- Retomada automática — IDs já coletados são ignorados ao reiniciar
-- Delays aleatórios de 2–5 s entre requisições
-- `try/except` em cada post — erros são logados e o loop continua
-
-**Estrutura do JSONL de saída:**
-
-```json
-{
-  "post": {
-    "id": "abc123",
-    "subreddit": "TikTok",
-    "keyword_group": "algoritmo",
-    "keyword": "TikTok algorithm",
-    "url": "https://reddit.com/r/TikTok/comments/abc123/...",
-    "title": "Why did my views drop overnight?",
-    "author": "username",
-    "body": "...",
-    "upvotes": 847,
-    "comment_count": 0,
-    "timestamp": "2024-08-15T14:32:00+00:00"
-  },
-  "comments": [
-    { "author": "user2", "body": "...", "upvotes": 42 }
-  ]
-}
+├── scripts/
+│   └── validate_profile.py # Valida YAML (sem browser)
+├── profiles/
+│   ├── README.md
+│   ├── schema/
+│   │   └── research_profile.schema.json
+│   └── examples/
+│       ├── template_completo.yaml
+│       ├── fofoca_algoritmica.yaml
+│       └── minimo.yaml
+├── scraper/
+│   ├── config.py           # Referência legada (comentada)
+│   ├── browser.py
+│   ├── reddit_scraper.py
+│   └── storage.py
+├── processor/
+│   ├── loader.py
+│   ├── cleaner.py
+│   └── exporter.py
+├── notebooks/
+│   └── analise_resultados.ipynb
+├── data/raw/               # JSONL (não versionado)
+├── data/processed/         # Excel (não versionado)
+├── logs/scraper_<study_id>.log
+└── reports/
 ```
 
 ---
 
-## Fase 2 — Limpeza e Estruturação
+## Perfil YAML (`study_id`, tema, delimitadores)
 
-**Script:** `process.py` | **Módulo:** `processor/`
+| Campo | Descrição |
+|--------|-------------|
+| `study_id` | Identificador curto (só letras, números e `_`); define nomes de arquivo. |
+| `theme_label` | Nome legível do estudo (metadados no JSONL/Excel e logs). |
+| `subreddits` | Lista de comunidades (sem prefixo `r/`). |
+| `keyword_groups` | Mapa `nome_do_grupo` → lista de strings de busca no Reddit. |
+| `search` | `time_filter`, limites de posts/comentários, delays, `headless_default`. |
+| `filters` | `min_comments`, `min_chars`, `creator_patterns`, `exclude_terms` (substring em título+corpo), `require_any_terms` (pelo menos um termo em título+corpo). |
+| `analysis` | `report_title`, `report_subtitle`, `vocabulary_terms`, `tactics_pattern`, `theories_pattern` (regex, flags case-insensitive na compilação). |
 
-Aplica um funil metodológico e exporta os dados em formato relacional.
+Copie [`profiles/examples/minimo.yaml`](profiles/examples/minimo.yaml) ou o modelo comentado  
+[`profiles/examples/template_completo.yaml`](profiles/examples/template_completo.yaml).
 
-**Funil de filtros:**
-
-| Etapa | Regra |
-|---|---|
-| Deduplicação | Remove posts com ID repetido |
-| Regra 1 | Mantém apenas posts com ≥ 3 comentários reais |
-| Regra 2 | Cria coluna `is_creator_suspect` (True se título/body menciona "my video", "tested", "my channel" etc.) |
-| Regra 3 | Descarta posts onde título + body < 30 caracteres |
-
-**Saída — Excel com duas abas:**
-
-- **Posts:** ID, Subreddit, Keyword, Titulo, Autor, Texto, Upvotes, Num\_Comentarios, Data, URL, is\_creator\_suspect
-- **Comentarios:** Post\_ID, Autor\_Comentario, Texto\_Comentario, Upvotes\_Comentario
-
----
-
-## Fase 3 — Análise e Relatório
-
-**Script:** `analise_corpus.py`
-
-Lê o Excel e gera um relatório Markdown com mapeamento linguístico do corpus.
-
-**Seções do relatório:**
-
-1. **Estatísticas Gerais** — total de posts, comentários, distribuição por subreddit
-2. **Posts de Criadores** — quantos posts têm `is_creator_suspect = True`
-3. **Vocabulário Nativo** — top 10 termos mais citados (`shadowban`, `fyp`, `algorithm`…)
-4. **Táticas e Experimentações** — menções a `tested`, `tried`, `worked`, `didn't work`…
-5. **Ranking de Discussão** — Top 5 posts por número de comentários (prioridade para codificação manual)
-
-O relatório é salvo com timestamp para não sobrescrever versões anteriores.
-
----
-
-## Fase 4 — Análise Estatística e Visualização
-
-**Notebook:** `notebooks/analise_resultados.ipynb`
-
-Análise exploratória do corpus processado com foco em caracterização estatística e visualização dos padrões de "fofoca algorítmica".
-
-**Seções do notebook:**
-
-1. **Estatística Descritiva** — total de posts, comentários, média de engajamento, percentual de criadores suspeitos
-2. **Distribuição por Subreddit** — contagem de posts por comunidade
-3. **Distribuição de Engajamento** — boxplot de upvotes e comentários por subreddit
-4. **Vocabulário Nativo** — frequência dos termos técnicos do ecossistema TikTok
-5. **Especulação vs. Ação** — presença de termos de hipótese (`maybe`, `probably`) versus experimentação (`tested`, `tried`)
-6. **Ansiedade Algorítmica** — mapeamento de termos de incerteza e frustração no corpus
-7. **Grafo Intra-Ação Neomaterialista** — rede de co-ocorrências entre termos do corpus
-
-**Gráficos gerados** (salvos em `notebooks/`):
-
-| Arquivo | Conteúdo |
-|---|---|
-| `grafico_subreddits.png` | Distribuição do corpus por comunidade |
-| `grafico_boxplot_comentarios.png` | Distribuição de comentários por subreddit |
-| `grafico_estatistica_descritiva_engajamento.png` | Upvotes e engajamento geral |
-| `grafico_vocabulario_nativo.png` | Top termos nativos do corpus |
-| `grafico_especulacao_acao.png` | Razão especulação/ação por subreddit |
-| `grafico_ansiedade_algoritmica.png` | Intensidade de ansiedade algorítmica |
-| `grafo_intra_acao_neomaterialista.png` | Grafo de co-ocorrências de termos |
-
-**Para executar:**
+Validar o perfil antes da Fase 1 (sem rede nem browser):
 
 ```bash
-cd notebooks
-jupyter notebook analise_resultados.ipynb
+python scripts/validate_profile.py profiles/examples/meu_perfil.yaml
 ```
 
-> As dependências `openpyxl` e `seaborn` são instaladas automaticamente pela primeira célula caso não estejam presentes.
+No Cursor/VS Code, com a extensão **YAML**, o ficheiro  
+[`profiles/schema/research_profile.schema.json`](profiles/schema/research_profile.schema.json)  
+é associado automaticamente aos YAML em `profiles/**` (ver [`.vscode/settings.json`](.vscode/settings.json)).
 
 ---
 
-## How to Use
+## Fase 1 — Coleta bruta
 
-### 1. Instalação
+Usa Playwright (Chromium) para buscar no Reddit **sem API oficial**.
 
 ```bash
-# Clone o repositório e entre na pasta
-cd influencias-research-tools
-
-# Instale as dependências Python
 pip install -r requirements.txt
-
-# Instale o browser do Playwright
 playwright install chromium
-```
 
-### 2. Fase 1 — Coleta
-
-```bash
-# Modo headless (produção)
+# Perfil padrão = exemplo fofoca algorítmica
 python main.py
 
-# Modo com janela aberta (debug)
-python main.py --no-headless
+python main.py --profile profiles/examples/minimo.yaml
+python main.py --no-headless   # janela visível (debug)
 ```
 
-> O arquivo `data/raw/raw_reddit_data.jsonl` será criado/atualizado incrementalmente.
-> Se interrompido, basta rodar novamente — posts já coletados são ignorados.
+Saída: `data/raw/<study_id>_raw.jsonl`, log em `logs/scraper_<study_id>.log`. Coleta incremental: IDs já presentes são ignorados ao rerodar.
 
-### 3. Fase 2 — Processamento
+Cada registro inclui `study_id` e `theme_label` no objeto `post`.
+
+---
+
+## Fase 2 — Limpeza e Excel
 
 ```bash
 python process.py
-
-# Caminhos customizados (opcional)
-python process.py --input data/raw/raw_reddit_data.jsonl --output data/processed/reddit_corpus_limpo.xlsx
+python process.py --profile profiles/examples/minimo.yaml
+python process.py --input data/raw/meu_estudo_raw.jsonl --output data/processed/meu_estudo_corpus.xlsx
 ```
 
-> Imprime o funil no console mostrando quantos posts sobreviveram a cada filtro.
+Funil: deduplicação → mínimo de comentários → coluna `is_creator_suspect` → tamanho mínimo do texto → opcional `exclude_terms` → opcional `require_any_terms`.
 
-### 4. Fase 3 — Análise
+Abas **Posts** e **Comentarios**; colunas extras **Study_ID** e **Theme**.
+
+---
+
+## Fase 3 — Relatório Markdown
 
 ```bash
 python analise_corpus.py
-
-# Arquivo de entrada customizado (opcional)
-python analise_corpus.py --input data/processed/reddit_corpus_limpo.xlsx
+python analise_corpus.py --profile profiles/examples/minimo.yaml
+python analise_corpus.py --input data/processed/meu_estudo_corpus.xlsx --profile profiles/examples/minimo.yaml
 ```
 
-> Imprime o relatório no console **e** salva em `reports/` com timestamp.
+O perfil define título/subtítulo do relatório, lista de termos para contagens e regexes de “táticas” e “teorias”. Arquivo: `reports/relatorio_<study_id>_<timestamp>.md`.
 
-### 5. Fase 4 — Visualização
+---
+
+## Fase 4 — Notebook
 
 ```bash
 cd notebooks
 jupyter notebook analise_resultados.ipynb
 ```
 
-### Sequência completa (do zero)
-
-```bash
-python main.py && python process.py && python analise_corpus.py
-# Em seguida, abra notebooks/analise_resultados.ipynb no Jupyter
-```
+A célula de carga de dados usa `profiles/examples/fofoca_algoritmica.yaml` para obter `study_id` e abrir `data/processed/<study_id>_corpus.xlsx`. Para outro estudo, altere `PROFILE_YAML` nessa célula (e rode Fases 1–2 com o mesmo perfil).
 
 ---
 
-## Ajustes Rápidos
+## Sequência sugerida
 
-| O que mudar | Onde |
-|---|---|
-| Subreddits e keywords alvo | `scraper/config.py` |
-| Limite de posts por busca | `scraper/config.py` → `MAX_POSTS_PER_SEARCH` |
-| Limite de comentários por post | `scraper/config.py` → `MAX_COMMENTS_PER_POST` |
-| Delays entre requisições | `scraper/config.py` → `DELAY_MIN` / `DELAY_MAX` |
-| Mínimo de comentários (Regra 1) | `processor/cleaner.py` → `MIN_COMMENTS` |
-| Mínimo de caracteres (Regra 3) | `processor/cleaner.py` → `MIN_CHARS` |
-| Termos do vocabulário nativo | `analise_corpus.py` → `VOCABULARIO_NATIVO` |
-| Arquivo de entrada/saída | Flags `--input` / `--output` nos scripts |
+```bash
+python main.py --profile profiles/examples/meu_perfil.yaml
+python process.py --profile profiles/examples/meu_perfil.yaml
+python analise_corpus.py --profile profiles/examples/meu_perfil.yaml
+```
+
+Depois abra o notebook e alinhe `PROFILE_YAML` ao mesmo arquivo.
+
+---
+
+## Ajustes rápidos
+
+| Objetivo | Onde |
+|----------|------|
+| Obrigatório vs opcional, `notes` / `metadata` | [`profiles/README.md`](profiles/README.md) |
+| Modelo YAML comentado | [`profiles/examples/template_completo.yaml`](profiles/examples/template_completo.yaml) |
+| Validar perfil (sem browser) | `python scripts/validate_profile.py profiles/...yaml` |
+| Subreddits, keywords, filtros, relatório | O seu `.yaml` em `profiles/` |
+| Caminhos por estudo | Automáticos a partir de `study_id` (`paths.paths_for_study`) |
+| Legado reprodutível | `profiles/examples/fofoca_algoritmica.yaml` |
+
+---
+
+## Ética e uso
+
+- Respeite os [termos do Reddit](https://www.redditinc.com/policies) e políticas locais de dados pessoais.
+- Use delays razoáveis (`search.delay_min` / `delay_max`); evite carga agressiva nos servidores.
+- Destina-se a **pesquisa** e transparência metodológica; não armazene ou redistribua dados além do necessário ao seu estudo.
 
 ---
 
 ## Dependências
 
 ```
-playwright>=1.44.0   # automação de browser (Fase 1)
-pandas>=2.2.0        # manipulação de dados (Fase 2 e 3)
-openpyxl>=3.1.0      # leitura/escrita de Excel (Fase 2 e 3)
+playwright>=1.44.0
+pandas>=2.2.0
+openpyxl>=3.1.0
+pyyaml>=6.0.0
 ```
