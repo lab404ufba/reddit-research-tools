@@ -1,5 +1,8 @@
 """
-Configurações centrais do scraper — subreddits, keywords e parâmetros operacionais.
+Referência legada dos parâmetros do estudo original.
+
+A configuração ativa por execução vem do perfil YAML (`--profile` em main.py).
+Veja `profiles/examples/fofoca_algoritmica.yaml` para o equivalente reprodutível.
 """
 
 SUBREDDITS = [

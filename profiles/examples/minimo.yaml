@@ -1,0 +1,40 @@
+# Exemplo mínimo: copie este arquivo, ajuste study_id, theme_label, subreddits e keyword_groups.
+# study_id → usado nos nomes de arquivo (apenas letras, números e _).
+#
+# Uso:
+#   python main.py --profile profiles/examples/minimo.yaml
+#   python process.py --profile profiles/examples/minimo.yaml
+#   python analise_corpus.py --profile profiles/examples/minimo.yaml
+
+study_id: exemplo_minimo
+theme_label: "Descreva aqui o tema do seu estudo"
+
+subreddits:
+  - AskReddit
+
+keyword_groups:
+  grupo_exemplo:
+    - uma frase de busca
+    - outra busca
+
+# Opcional — padrões sensatos se omitido
+search:
+  time_filter: year
+  max_posts_per_search: 20
+  max_comments_per_post: 15
+  delay_min: 2.0
+  delay_max: 5.0
+
+# Opcional — termos a excluir (substring em título+corpo, sem diferenciar maiúsculas)
+# require_any_terms: se não vazio, só mantém posts que contenham pelo menos um termo
+filters:
+  exclude_terms: []
+  require_any_terms: []
+
+# Opcional — título do relatório e vocabulário para contagem na Fase 3
+analysis:
+  report_title: "Relatório do corpus — exemplo mínimo"
+  report_subtitle: "Corpus Reddit"
+  vocabulary_terms:
+    - exemplo
+    - discussão

@@ -40,7 +40,7 @@ def load_jsonl(filepath: str) -> pd.DataFrame:
     # Garante que colunas essenciais existam mesmo que o JSONL esteja incompleto
     for col in ["id", "subreddit", "keyword", "keyword_group", "title",
                 "author", "body", "upvotes", "comment_count", "timestamp",
-                "url", "comments"]:
+                "url", "study_id", "theme_label", "comments"]:
         if col not in df.columns:
             df[col] = None
 

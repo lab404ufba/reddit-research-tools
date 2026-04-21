@@ -1,0 +1,65 @@
+# Perfil equivalente ao estudo original "fofoca algorítmica" (TikTok / algoritmo no Reddit).
+# Uso: python main.py --profile profiles/examples/fofoca_algoritmica.yaml
+
+study_id: fofoca_algoritmica
+theme_label: "Fofoca algorítmica — discursos sobre o algoritmo do TikTok"
+
+subreddits:
+  - TikTokMonetizing
+  - TikTok
+  - socialmedia
+  - NewTubers
+  - ContentCreation
+  - Influencers
+
+keyword_groups:
+  algoritmo:
+    - TikTok algorithm
+    - algorithm changed
+    - algorithm update
+  shadowban:
+    - TikTok shadowban
+    - shadow banned
+    - account restricted
+  visibilidade:
+    - views dropped
+    - zero views
+    - not on FYP
+    - reach down
+  metricas:
+    - retention rate
+    - watch time
+    - engagement dropped
+  monetizacao:
+    - Creator Rewards
+    - TikTok monetization
+
+search:
+  time_filter: year
+  max_posts_per_search: 40
+  max_comments_per_post: 20
+  delay_min: 2.0
+  delay_max: 5.0
+  headless_default: true
+
+filters:
+  min_comments: 3
+  min_chars: 30
+  exclude_terms: []
+  require_any_terms: []
+
+analysis:
+  report_title: "Relatório de análise — Fofoca algorítmica"
+  report_subtitle: "Fase 3 · Padrões de discurso sobre o algoritmo do TikTok no Reddit"
+  vocabulary_terms:
+    - shadowban
+    - fyp
+    - algorithm
+    - retention
+    - engagement
+    - reach
+    - viral
+    - 300 view jail
+    - metrics
+  tactics_pattern: "\\b(tested|tried|experimented|changed my|adjusted|worked|didn[''`]?t work)\\b"
+  theories_pattern: "(post \\d+ times?|best time to post|retention rate|3 seconds?|watch time)"

@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 from playwright.sync_api import BrowserContext, Page, TimeoutError as PWTimeout
 
-from scraper import config
+from research_profile import ResearchProfile
 from scraper.browser import new_page
 from scraper.storage import JsonlStorage
 
@@ -27,17 +27,17 @@ logger = logging.getLogger(__name__)
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _sleep() -> None:
-    delay = random.uniform(config.DELAY_MIN, config.DELAY_MAX)
+def _sleep(delay_min: float, delay_max: float) -> None:
+    delay = random.uniform(delay_min, delay_max)
     logger.debug("Aguardando %.1fs…", delay)
     time.sleep(delay)
 
 
-def _build_search_url(subreddit: str, keyword: str) -> str:
+def _build_search_url(subreddit: str, keyword: str, time_filter: str) -> str:
     q = urllib.parse.quote_plus(keyword)
     return (
         f"https://www.reddit.com/r/{subreddit}/search/"
-        f"?q={q}&restrict_sr=1&t={config.SEARCH_TIME_FILTER}&sort=relevance"
+        f"?q={q}&restrict_sr=1&t={time_filter}&sort=relevance"
     )
 
 
@@ -55,12 +55,21 @@ def _extract_post_id(url: str) -> str | None:
 # Coleta de links (página de resultados de busca)
 # ---------------------------------------------------------------------------
 
-def collect_post_links(page: Page, subreddit: str, keyword: str) -> list[str]:
+def collect_post_links(
+    page: Page,
+    subreddit: str,
+    keyword: str,
+    *,
+    time_filter: str,
+    max_posts: int,
+    delay_min: float,
+    delay_max: float,
+) -> list[str]:
     """
     Acessa a página de busca, faz scroll para carregar posts
-    e retorna até MAX_POSTS_PER_SEARCH URLs únicas de posts.
+    e retorna até `max_posts` URLs únicas de posts.
     """
-    url = _build_search_url(subreddit, keyword)
+    url = _build_search_url(subreddit, keyword, time_filter)
     logger.info("[BUSCA] r/%s | '%s' → %s", subreddit, keyword, url)
 
     try:
@@ -69,7 +78,7 @@ def collect_post_links(page: Page, subreddit: str, keyword: str) -> list[str]:
         logger.warning("Timeout ao carregar página de busca: %s", url)
         return []
 
-    _sleep()
+    _sleep(delay_min, delay_max)
 
     links: list[str] = []
     max_scrolls = 8
@@ -94,14 +103,14 @@ def collect_post_links(page: Page, subreddit: str, keyword: str) -> list[str]:
             "Scroll %d/%d — links acumulados: %d", scroll_n + 1, max_scrolls, len(links)
         )
 
-        if len(links) >= config.MAX_POSTS_PER_SEARCH:
+        if len(links) >= max_posts:
             break
 
         # Scroll até o final da página
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         time.sleep(scroll_pause)
 
-    return links[: config.MAX_POSTS_PER_SEARCH]
+    return links[:max_posts]
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +122,12 @@ def extract_post_data(
     post_url: str,
     subreddit: str,
     keyword_info: dict,
+    *,
+    study_id: str,
+    theme_label: str,
+    max_comments_per_post: int,
+    delay_min: float,
+    delay_max: float,
 ) -> dict | None:
     """
     Acessa a página de um post e extrai metadados + comentários.
@@ -125,11 +140,18 @@ def extract_post_data(
         logger.warning("Timeout ao carregar post: %s", post_url)
         return None
 
-    _sleep()
+    _sleep(delay_min, delay_max)
 
     try:
-        post_data = _parse_post(page, post_url, subreddit, keyword_info)
-        comments = _parse_comments(page)
+        post_data = _parse_post(
+            page,
+            post_url,
+            subreddit,
+            keyword_info,
+            study_id=study_id,
+            theme_label=theme_label,
+        )
+        comments = _parse_comments(page, max_comments_per_post=max_comments_per_post)
     except Exception as exc:
         logger.error("Erro ao parsear %s: %s", post_url, exc, exc_info=True)
         return None
@@ -142,6 +164,9 @@ def _parse_post(
     url: str,
     subreddit: str,
     keyword_info: dict,
+    *,
+    study_id: str,
+    theme_label: str,
 ) -> dict:
     """Extrai metadados do post original."""
     post_id = _extract_post_id(url) or ""
@@ -190,6 +215,8 @@ def _parse_post(
         "subreddit": subreddit,
         "keyword_group": keyword_info.get("group", ""),
         "keyword": keyword_info.get("keyword", ""),
+        "study_id": study_id,
+        "theme_label": theme_label,
         "url": url,
         "title": title,
         "author": author,
@@ -200,7 +227,7 @@ def _parse_post(
     }
 
 
-def _parse_comments(page: Page) -> list[dict]:
+def _parse_comments(page: Page, *, max_comments_per_post: int) -> list[dict]:
     """Extrai os top comentários do post."""
     comments: list[dict] = []
 
@@ -214,7 +241,7 @@ def _parse_comments(page: Page) -> list[dict]:
     for selector in comment_selectors:
         elements = page.query_selector_all(selector)
         if elements:
-            for el in elements[: config.MAX_COMMENTS_PER_POST]:
+            for el in elements[:max_comments_per_post]:
                 try:
                     author_el = el.query_selector(
                         'a[href*="/user/"], [slot="authorName"]'
@@ -283,19 +310,29 @@ def _parse_int(raw: str) -> int:
 # Loop principal
 # ---------------------------------------------------------------------------
 
-def run_scraper(context: BrowserContext, storage: JsonlStorage) -> None:
+def run_scraper(context: BrowserContext, storage: JsonlStorage, profile: ResearchProfile) -> None:
     """
     Itera sobre todas as combinações (subreddit × keyword),
     coleta links e extrai dados de cada post.
     """
     total_saved = 0
     total_skipped = 0
+    s = profile.search
+    keywords = profile.flattened_keywords()
 
-    for subreddit in config.SUBREDDITS:
-        for kw_info in config.KEYWORDS:
+    for subreddit in profile.subreddits:
+        for kw_info in keywords:
             search_page = new_page(context)
             try:
-                post_links = collect_post_links(search_page, subreddit, kw_info["keyword"])
+                post_links = collect_post_links(
+                    search_page,
+                    subreddit,
+                    kw_info["keyword"],
+                    time_filter=s.time_filter,
+                    max_posts=s.max_posts_per_search,
+                    delay_min=s.delay_min,
+                    delay_max=s.delay_max,
+                )
             finally:
                 search_page.close()
 
@@ -315,7 +352,17 @@ def run_scraper(context: BrowserContext, storage: JsonlStorage) -> None:
 
                 post_page = new_page(context)
                 try:
-                    record = extract_post_data(post_page, link, subreddit, kw_info)
+                    record = extract_post_data(
+                        post_page,
+                        link,
+                        subreddit,
+                        kw_info,
+                        study_id=profile.study_id,
+                        theme_label=profile.theme_label,
+                        max_comments_per_post=s.max_comments_per_post,
+                        delay_min=s.delay_min,
+                        delay_max=s.delay_max,
+                    )
                     if record:
                         storage.save(record)
                         total_saved += 1
@@ -329,7 +376,7 @@ def run_scraper(context: BrowserContext, storage: JsonlStorage) -> None:
                 finally:
                     post_page.close()
 
-                _sleep()
+                _sleep(s.delay_min, s.delay_max)
 
     logger.info(
         "Coleta finalizada. Salvos: %d | Pulados (duplicatas): %d",
