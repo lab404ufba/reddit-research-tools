@@ -2,7 +2,7 @@
 
 Ferramenta para **montar corpus a partir do Reddit** com um **perfil de pesquisa** (YAML): cada estudo define `study_id`, tema legível, subreddits, grupos de palavras-chave, filtros de pós-processamento (exclusões, termos obrigatórios) e parâmetros do relatório da Fase 3. O caso original foi o estudo sobre **discursos de criadores sobre o algoritmo do TikTok** (“fofoca algorítmica”); a mesma pipeline serve para qualquer tema delimitado pelo pesquisador.
 
-**Autor (estudo original):** Giovanni Della Dea  
+**Autores da pesquisa original:** Thiago Assumpção e Giovanni Della Dea  
 **Instituição:** Universidade Federal da Bahia (UFBA)
 
 ---
